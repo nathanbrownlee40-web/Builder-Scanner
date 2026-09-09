@@ -1,45 +1,156 @@
-import React,{useMemo,useState} from "react";
+
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
-import {BarChart3,LayoutDashboard,PlusCircle,History,Settings,Upload,Search,TrendingUp,TrendingDown,Target,Wallet,CalendarDays,ChevronRight,Trash2,CheckCircle2,CircleDollarSign} from "lucide-react";
+import {createWorker} from "tesseract.js";
 import "./styles.css";
 
 const seed=[
-{id:1,date:"2026-09-08",bookmaker:"Bet365",sport:"Football",games:2,selections:5,odds:5.4,stake:20,return:108,result:"Won",markets:["Match Result","Goals","Player Shots"],note:"Weekend acca builder"},
-{id:2,date:"2026-09-07",bookmaker:"Sky Bet",sport:"Football",games:3,selections:6,odds:7.2,stake:15,return:0,result:"Lost",markets:["Goals","Corners","Cards"],note:""},
-{id:3,date:"2026-09-05",bookmaker:"Bet365",sport:"Football",games:2,selections:4,odds:4.1,stake:10,return:41,result:"Won",markets:["Goals","BTTS"],note:""},
-{id:4,date:"2026-09-02",bookmaker:"Ladbrokes",sport:"Football",games:1,selections:3,odds:3.8,stake:10,return:0,result:"Lost",markets:["Match Result","Goals"],note:""},
-{id:5,date:"2026-08-29",bookmaker:"Bet365",sport:"Football",games:4,selections:8,odds:10.5,stake:10,return:0,result:"Lost",markets:["Goals","Player Shots"],note:""},
-{id:6,date:"2026-08-22",bookmaker:"Sky Bet",sport:"Basketball",games:2,selections:4,odds:3.6,stake:25,return:90,result:"Won",markets:["Moneyline","Player Points"],note:""},
+ {id:1,date:"2026-09-02",bookmaker:"Bet365",sport:"Football",games:2,selections:4,odds:4.5,stake:10,return:45,result:"Won",markets:["Match Result","Goals","Corners","Cards"],note:"Weekend builder"},
+ {id:2,date:"2026-09-03",bookmaker:"Sky Bet",sport:"Football",games:3,selections:6,odds:6.2,stake:15,return:0,result:"Lost",markets:["Goals","Shots","Match Result"],note:""},
+ {id:3,date:"2026-09-06",bookmaker:"William Hill",sport:"Football",games:2,selections:4,odds:3.8,stake:12,return:45.6,result:"Won",markets:["Goals","Both Teams To Score"],note:""},
+ {id:4,date:"2026-09-08",bookmaker:"Bet365",sport:"Football",games:1,selections:3,odds:5.5,stake:8,return:0,result:"Pending",markets:["Player Shots","Goals"],note:""}
 ];
 
-function money(n){return `£${n.toFixed(2)}`}
+function readBets(){try{return JSON.parse(localStorage.getItem("bbt-bets"))||seed}catch{return seed}}
+const money=n=>"£"+Number(n||0).toFixed(2);
+const safeNum=(v,d=0)=>{const n=Number(String(v).replace(/[^\d.-]/g,""));return Number.isFinite(n)?n:d};
+
 function App(){
- const [bets,setBets]=useState(seed),[page,setPage]=useState("Dashboard"),[query,setQuery]=useState(""),[month,setMonth]=useState("All");
- const stats=useMemo(()=>{const totalStake=bets.reduce((a,b)=>a+b.stake,0), ret=bets.reduce((a,b)=>a+b.return,0), wins=bets.filter(b=>b.result==="Won").length;return {totalStake,ret,profit:ret-totalStake,wins,losses:bets.length-wins,winRate:bets.length?wins/bets.length*100:0,avgOdds:bets.length?bets.reduce((a,b)=>a+b.odds,0)/bets.length:0,roi:totalStake?(ret-totalStake)/totalStake*100:0,bankroll:1000+ret-totalStake}},[bets]);
- const months=useMemo(()=>{let m={};bets.forEach(b=>{let k=b.date.slice(0,7);if(!m[k])m[k]={stake:0,ret:0,wins:0,bets:0};m[k].stake+=b.stake;m[k].ret+=b.return;m[k].wins+=b.result==="Won"?1:0;m[k].bets++});return Object.entries(m).sort().map(([k,v])=>({...v,k,profit:v.ret-v.stake}))},[bets]);
- const filtered=bets.filter(b=>(month==="All"||b.date.startsWith(month))&&(`${b.bookmaker} ${b.sport} ${b.markets.join(" ")} ${b.result}`).toLowerCase().includes(query.toLowerCase()));
- function addBet(){const b={id:Date.now(),date:new Date().toISOString().slice(0,10),bookmaker:"Bet365",sport:"Football",games:2,selections:4,odds:4.5,stake:10,return:0,result:"Pending",markets:["Goals","Match Result"],note:"New manually added bet"};setBets(x=>[b,...x]);setPage("History")}
- function scan(){addBet();alert("Demo scanner: a draft bet was created. In production, connect OCR/vision to extract the slip fields from the uploaded screenshot.")}
+ const [bets,setBets]=useState(readBets);
+ const [page,setPage]=useState("Dashboard");
+ useEffect(()=>localStorage.setItem("bbt-bets",JSON.stringify(bets)),[bets]);
+ const addBet=bet=>{setBets(x=>[{...bet,id:Date.now(),date:bet.date||new Date().toISOString().slice(0,10)},...x]);setPage("Bet History")};
+ const updateResult=(id,result)=>setBets(x=>x.map(b=>b.id===id?{...b,result,return:result==="Won"?(Number(b.stake)*Number(b.odds)):result==="Lost"?0:Number(b.return||0)}:b));
+ const deleteBet=id=>setBets(x=>x.filter(b=>b.id!==id));
  return <div className="app">
-  <aside><div className="brand"><CircleDollarSign/> <span>BET<span>TRACKER</span></span></div>
-   {[[LayoutDashboard,"Dashboard"],[PlusCircle,"Add Bet"],[History,"Bet History"],[BarChart3,"Analytics"],[Settings,"Settings"]].map(([I,n])=><button className={page===n?"nav active":"nav"} onClick={()=>setPage(n)}><I size={19}/>{n}</button>)}
-   <div className="sidebox"><Wallet size={20}/><small>Current bankroll</small><strong>{money(stats.bankroll)}</strong><em>{stats.profit>=0?"+":""}{money(stats.profit)} all time</em></div>
+  <aside className="side"><div className="brand"><span className="brandmark">✓</span><div><b>BET BUILDER</b><small>TRACKER</small></div></div>
+   {["Dashboard","Add Bet","Bet History","Analytics","Settings"].map(p=><button className={page===p?"nav active":"nav"} onClick={()=>setPage(p)} key={p}><span>{({Dashboard:"⌂","Add Bet":"+","Bet History":"▤",Analytics:"◒",Settings:"⚙"})[p]}</span>{p}</button>)}
+   <div className="sidefoot">PRIVATE LOCAL TRACKER<br/><span>Your bets stay in this browser.</span></div>
   </aside>
-  <main><header><div><h1>{page}</h1><p>Track every builder, selection and result.</p></div><button className="primary" onClick={()=>setPage("Add Bet")}><PlusCircle size={18}/> Add bet</button></header>
-   {page==="Dashboard"&&<Dashboard stats={stats} months={months} bets={bets} setPage={setPage}/>}
-   {page==="Add Bet"&&<AddBet onAdd={addBet} onScan={scan}/>}
-   {page==="Bet History"&&<HistoryPage bets={filtered} query={query} setQuery={setQuery} month={month} setMonth={setMonth} setBets={setBets}/>}
-   {page==="Analytics"&&<Analytics stats={stats} bets={bets} months={months}/>}
-   {page==="Settings"&&<SettingsPage/>}
+  <main className="main"><header><div><div className="eyebrow">BET BUILDER TRACKER</div><h1>{page}</h1></div><button className="primary" onClick={()=>setPage("Add Bet")}>＋ Add bet</button></header>
+   {page==="Dashboard"&&<Dashboard bets={bets} setPage={setPage}/>}
+   {page==="Add Bet"&&<AddBet onAdd={addBet}/>}
+   {page==="Bet History"&&<History bets={bets} updateResult={updateResult} deleteBet={deleteBet}/>}
+   {page==="Analytics"&&<Analytics bets={bets}/>}
+   {page==="Settings"&&<Settings bets={bets} setBets={setBets}/>}
   </main>
  </div>
 }
-function Cards({stats}){return <div className="cards">
- {[[Wallet,"Total Staked",money(stats.totalStake)], [TrendingUp,"Profit / Loss",(stats.profit>=0?"+":"")+money(stats.profit),stats.profit], [Target,"Win Rate",stats.winRate.toFixed(1)+"%"],[BarChart3,"Average Odds",stats.avgOdds.toFixed(2)],[CircleDollarSign,"ROI",(stats.roi>=0?"+":"")+stats.roi.toFixed(1)+"%"],[CalendarDays,"Total Bets",stats.wins+stats.losses]].map(([I,l,v,raw])=><div className="card"><div className="icon"><I size={18}/></div><span>{l}</span><b className={raw<0?"negative":raw>0?"positive":""}>{v}</b></div>)}
- </div>}
-function Dashboard({stats,months,bets,setPage}){let max=Math.max(1,...months.map(x=>Math.abs(x.profit)));return <><Cards stats={stats}/><div className="grid2"><section className="panel"><div className="panelhead"><div><h2>Monthly profit & loss</h2><p>Net result by month</p></div><button className="ghost" onClick={()=>setPage("Analytics")}>View analytics <ChevronRight size={15}/></button></div><div className="bars">{months.map(m=><div className="barcol"><div className="barwrap"><div className={m.profit>=0?"bar pos":"bar neg"} style={{height:`${Math.max(8,Math.abs(m.profit)/max*145)}px`}}></div></div><strong>{m.profit>=0?"+":""}{m.profit.toFixed(0)}</strong><small>{m.k}</small></div>)}</div></section><section className="panel"><div className="panelhead"><div><h2>Recent bets</h2><p>Latest builder activity</p></div><button className="ghost" onClick={()=>setPage("Bet History")}>View all</button></div>{bets.slice(0,5).map(b=><div className="row"><div className={b.result==="Won"?"status win":"status lose"}>{b.result==="Won"?<CheckCircle2 size={17}/>:<TrendingDown size={17}/>}</div><div className="rowmain"><b>{b.bookmaker} · {b.games} games</b><span>{b.selections} selections · {b.odds.toFixed(2)} odds</span></div><strong className={b.return-b.stake>=0?"positive":"negative"}>{b.result==="Pending"?"Pending":(b.return-b.stake>=0?"+":"")+money(b.return-b.stake)}</strong></div>)}</section></div></>}
-function AddBet({onAdd,onScan}){return <div className="addgrid"><section className="panel upload"><Upload size={34}/><h2>Scan your bet slip</h2><p>Upload a screenshot and let the scanner extract the builder details.</p><label className="uploadbtn"><Upload size={17}/> Choose screenshot<input type="file" accept="image/*" onChange={onScan}/></label><small>OCR/vision extraction is represented by the demo workflow in this starter build.</small></section><section className="panel form"><h2>Bet details</h2><div className="formgrid">{["Bookmaker","Sport","Date","Stake","Total odds","Potential return","Games","Selections"].map((x,i)=><label>{x}<input defaultValue={i===0?"Bet365":i===1?"Football":i===2?new Date().toISOString().slice(0,10):i===3?"10":i===4?"4.50":i===5?"45.00":i===6?"2":"4"}/></label>)}</div><h3>Markets & selections</h3><div className="chips"><span>Arsenal · Match Result</span><span>Over 2.5 · Goals</span><span>Saka · 1+ SOT</span></div><button className="primary wide" onClick={onAdd}>Save bet</button></section></div>}
-function HistoryPage({bets,query,setQuery,month,setMonth,setBets}){return <section className="panel"><div className="filters"><div className="search"><Search size={17}/><input placeholder="Search bets, bookmaker, market..." value={query} onChange={e=>setQuery(e.target.value)}/></div><select value={month} onChange={e=>setMonth(e.target.value)}><option>All</option>{["2026-09","2026-08"].map(x=><option>{x}</option>)}</select></div><div className="table"><div className="thead"><span>Date</span><span>Bookmaker / sport</span><span>Builder</span><span>Odds</span><span>Stake</span><span>Result</span><span>P/L</span><span></span></div>{bets.map(b=><div className="trow"><span>{b.date}</span><span><b>{b.bookmaker}</b><small>{b.sport}</small></span><span>{b.games} games · {b.selections} selections<small>{b.markets.join(" · ")}</small></span><span>{b.odds.toFixed(2)}</span><span>{money(b.stake)}</span><span><mark className={b.result.toLowerCase()}>{b.result}</mark></span><span className={b.return-b.stake>=0?"positive":"negative"}>{b.result==="Pending"?"—":(b.return-b.stake>=0?"+":"")+money(b.return-b.stake)}</span><button className="iconbtn" onClick={()=>setBets(x=>x.filter(y=>y.id!==b.id))}><Trash2 size={15}/></button></div>)}</div></section>}
-function Analytics({stats,bets,months}){let by={};bets.forEach(b=>{by[b.bookmaker]??={stake:0,ret:0,bets:0,wins:0};by[b.bookmaker].stake+=b.stake;by[b.bookmaker].ret+=b.return;by[b.bookmaker].bets++;by[b.bookmaker].wins+=b.result==="Won"?1:0});return <><Cards stats={stats}/><div className="grid2"><section className="panel"><h2>Profit by bookmaker</h2>{Object.entries(by).map(([k,v])=><div className="metricrow"><span>{k}</span><b className={v.ret-v.stake>=0?"positive":"negative"}>{(v.ret-v.stake>=0?"+":"")+money(v.ret-v.stake)}</b></div>)}</section><section className="panel"><h2>Builder size breakdown</h2>{[2,3,4,5,6,8].map(n=>{let a=bets.filter(b=>b.selections===n),p=a.reduce((x,b)=>x+b.return-b.stake,0);return <div className="metricrow"><span>{n} selections</span><span>{a.length} bets</span><b className={p>=0?"positive":"negative"}>{p>=0?"+":""}{money(p)}</b></div>})}</section></div><section className="panel"><h2>Monthly performance</h2><div className="table"><div className="thead"><span>Month</span><span>Bets</span><span>Stake</span><span>Returns</span><span>Profit</span><span>Win rate</span></div>{months.map(m=><div className="trow"><span>{m.k}</span><span>{m.bets}</span><span>{money(m.stake)}</span><span>{money(m.ret)}</span><span className={m.profit>=0?"positive":"negative"}>{m.profit>=0?"+":""}{money(m.profit)}</span><span>{(m.wins/m.bets*100).toFixed(1)}%</span></div>)}</div></section></>}
-function SettingsPage(){return <div className="panel settings"><h2>Tracker settings</h2><label>Starting bankroll<input defaultValue="1000"/></label><label>Currency<select><option>GBP (£)</option><option>EUR (€)</option><option>USD ($)</option></select></label><label>Default bookmaker<input defaultValue="Bet365"/></label><p>Production version can persist bets in a database, authenticate users, store slip images, and connect an OCR/vision service for automatic screenshot parsing.</p></div>}
+
+function Dashboard({bets,setPage}){
+ const settled=bets.filter(b=>b.result!=="Pending"), won=settled.filter(b=>b.result==="Won");
+ const profit=settled.reduce((a,b)=>a+Number(b.return||0)-Number(b.stake||0),0);
+ const staked=settled.reduce((a,b)=>a+Number(b.stake||0),0), roi=staked?profit/staked*100:0;
+ const avg=bets.length?bets.reduce((a,b)=>a+Number(b.odds||0),0)/bets.length:0;
+ return <div className="content">
+  <section className="hero"><div><span className="pill">LIVE TRACKER</span><h2>Know exactly how your builders are performing.</h2><p>Scan a bet slip, review every leg, save it, then track results and bankroll over time.</p></div><div className="heroart"><i></i><i></i><i></i><strong>{money(profit)}</strong><small>settled profit</small></div></section>
+  <div className="kpis"><K title="Total bets" value={bets.length} sub={`${bets.filter(b=>b.result==="Pending").length} pending`} icon="◈"/><K title="Win rate" value={`${settled.length?(won.length/settled.length*100).toFixed(1):0}%`} sub={`${won.length} wins / ${settled.length} settled`} icon="↗"/><K title="Average odds" value={avg.toFixed(2)} sub="across all builders" icon="◎"/><K title="ROI" value={`${roi.toFixed(1)}%`} sub={`profit ${money(profit)}`} icon="£"/></div>
+  <div className="grid2"><section className="card chartcard"><div className="cardhead"><div><b>Profit / loss</b><span>Settled cumulative</span></div><button onClick={()=>setPage("Bet History")}>Full history →</button></div><ProfitChart bets={bets}/></section>
+  <section className="card"><div className="cardhead"><div><b>Recent bets</b><span>Latest activity</span></div></div><div className="recent">{bets.slice(0,5).map(b=><div className="recentrow" key={b.id}><div className="datebox">{String(b.date).slice(8,10)}<small>{new Date(b.date).toLocaleString("en-GB",{month:"short"})}</small></div><div className="grow"><b>{b.bookmaker} · {b.sport}</b><span>{b.games} games · {b.selections} selections · {b.odds} odds</span></div><div className={b.result==="Won"?"profit pos":b.result==="Lost"?"profit neg":"profit pend"}>{b.result==="Won"?"+":b.result==="Lost"?"−":"…"}{money(Math.abs(Number(b.return||0)-Number(b.stake||0)))}</div></div>)}</div></section></div>
+ </div>
+}
+function K({title,value,sub,icon}){return <div className="kpi"><span className="kicon">{icon}</span><small>{title}</small><strong>{value}</strong><em>{sub}</em></div>}
+
+function ProfitChart({bets}){
+ const data=bets.filter(b=>b.result!=="Pending").slice().reverse().reduce((a,b)=>{const prev=a.length?a[a.length-1].v:0;a.push({d:b.date,v:prev+Number(b.return||0)-Number(b.stake||0)});return a},[]);
+ if(!data.length)return <div className="emptychart">Settle a bet to start your profit graph.</div>;
+ const W=760,H=250,pad=28,min=Math.min(0,...data.map(x=>x.v)),max=Math.max(0,...data.map(x=>x.v)),range=max-min||1;
+ const pts=data.map((x,i)=>`${pad+i*(W-pad*2)/Math.max(1,data.length-1)},${H-pad-(x.v-min)/range*(H-pad*2)}`).join(" ");
+ return <div className="svgwrap"><svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"><line x1={pad} y1={H-pad-(0-min)/range*(H-pad*2)} x2={W-pad} y2={H-pad-(0-min)/range*(H-pad*2)} className="zero"/><polyline points={pts} className="line"/>{data.map((x,i)=>{const [cx,cy]=pts.split(" ")[i].split(",");return <circle key={i} cx={cx} cy={cy} r="4" className={x.v>=0?"dot posdot":"dot negdot"}><title>{x.d} · {money(x.v)}</title></circle>})}</svg><div className="chartlabels"><span>{data[0].d}</span><span>{data[data.length-1].d}</span></div></div>
+}
+
+function AddBet({onAdd}){
+ const [file,setFile]=useState(null),[preview,setPreview]=useState(""),[scanning,setScanning]=useState(false),[progress,setProgress]=useState(0),[status,setStatus]=useState(""),[raw,setRaw]=useState("");
+ const [form,setForm]=useState({bookmaker:"",sport:"Football",date:new Date().toISOString().slice(0,10),stake:"",odds:"",return:"",result:"Pending",note:"",legs:[]});
+ const input=useRef();
+ const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+ async function scan(f){
+  if(!f||!f.type.startsWith("image/")){setStatus("Please choose a JPG, PNG or WEBP image.");return}
+  setFile(f);setPreview(URL.createObjectURL(f));setScanning(true);setProgress(0);setStatus("Reading the bet slip…");
+  const worker=await createWorker("eng",{logger:m=>{if(m.status==="recognizing text")setProgress(Math.round((m.progress||0)*100))}});
+  try{
+   const {data}=await worker.recognize(f); setRaw(data.text||"");
+   const parsed=parseSlip(data.text||"");
+   setForm(x=>({...x,...parsed,legs:parsed.legs.length?parsed.legs:x.legs}));
+   setStatus(`Scan complete — ${parsed.legs.length} leg${parsed.legs.length===1?"":"s"} detected. Check the fields below before saving.`);
+  }catch(e){setStatus("The image could not be read. You can still enter the slip manually.");}
+  await worker.terminate();setScanning(false);
+ }
+ function save(e){e.preventDefault();
+  const legs=form.legs.filter(l=>l.fixture||l.market||l.selection).map(l=>({...l}));
+  const games=new Set(legs.map(l=>l.fixture).filter(Boolean)).size||Math.max(1,Number(form.games||1));
+  const selections=legs.length||Math.max(1,Number(form.selections||1));
+  const bet={...form,games,selections,stake:safeNum(form.stake),odds:safeNum(form.odds,1),return:safeNum(form.return),legs};
+  onAdd(bet);
+ }
+ const addLeg=()=>setForm(f=>({...f,legs:[...f.legs,{fixture:"",market:"",selection:"",odds:""}]}));
+ const editLeg=(i,k,v)=>setForm(f=>({...f,legs:f.legs.map((l,n)=>n===i?{...l,[k]:v}:l)}));
+ return <div className="content addgrid"><section className="card scanner"><div className="cardhead"><div><b>Scan your bet slip</b><span>Real image upload + local OCR</span></div><span className="secure">● ON DEVICE</span></div>
+  <input ref={input} type="file" accept="image/*" hidden onChange={e=>scan(e.target.files?.[0])}/>
+  <div className="drop" onClick={()=>input.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();scan(e.dataTransfer.files?.[0])}}>{preview?<img src={preview} />:<><div className="uploadicon">↑</div><b>Drop a screenshot here</b><span>or click to choose an image</span><small>PNG · JPG · WEBP</small></>}</div>
+  {scanning&&<div className="progress"><div style={{width:`${progress}%`}}></div><span>{progress}% scanning</span></div>}
+  {status&&<div className="scanstatus">{status}</div>}
+  {raw&&<details><summary>OCR text</summary><pre>{raw}</pre></details>}
+ </section>
+ <form className="card form" onSubmit={save}><div className="cardhead"><div><b>Review & save</b><span>Everything is editable</span></div></div>
+  <div className="fields"><label>Bookmaker<input value={form.bookmaker} onChange={e=>set("bookmaker",e.target.value)} placeholder="e.g. Bet365"/></label><label>Sport<input value={form.sport} onChange={e=>set("sport",e.target.value)} /></label><label>Date<input type="date" value={form.date} onChange={e=>set("date",e.target.value)} /></label><label>Stake (£)<input type="number" step="0.01" value={form.stake} onChange={e=>set("stake",e.target.value)} /></label><label>Total odds<input type="number" step="0.01" value={form.odds} onChange={e=>set("odds",e.target.value)} /></label><label>Return (£)<input type="number" step="0.01" value={form.return} onChange={e=>set("return",e.target.value)} /></label><label>Result<select value={form.result} onChange={e=>set("result",e.target.value)}><option>Pending</option><option>Won</option><option>Lost</option><option>Void</option></select></label><label>Note<input value={form.note} onChange={e=>set("note",e.target.value)} placeholder="Optional"/></label></div>
+  <div className="legshead"><div><b>Builder legs</b><span>{form.legs.length} detected / added</span></div><button type="button" className="ghost" onClick={addLeg}>＋ Add leg</button></div>
+  {form.legs.length===0&&<div className="legempty">No legs detected yet. Add them manually or upload a clearer screenshot.</div>}
+  {form.legs.map((l,i)=><div className="leg" key={i}><div className="legnum">{i+1}</div><input value={l.fixture} onChange={e=>editLeg(i,"fixture",e.target.value)} placeholder="Game / fixture"/><input value={l.market} onChange={e=>editLeg(i,"market",e.target.value)} placeholder="Market"/><input value={l.selection} onChange={e=>editLeg(i,"selection",e.target.value)} placeholder="Selection"/><input value={l.odds||""} onChange={e=>editLeg(i,"odds",e.target.value)} placeholder="Odds"/></div>)}
+  <button className="primary save" type="submit">Save bet builder →</button>
+ </form></div>
+}
+
+function parseSlip(text){
+ const lines=text.split(/\r?\n/).map(s=>s.replace(/\s+/g," ").trim()).filter(Boolean);
+ const all=text.replace(/\s+/g," ");
+ const known=["Bet365","Sky Bet","William Hill","Ladbrokes","Coral","Paddy Power","Betfair","Unibet","888sport","Betway","BoyleSports","Virgin Bet","talkSPORT BET","Betfred","Dafabet","Spreadex","Parimatch"];
+ const bookmaker=known.find(x=>new RegExp(x.replace(" ","\\s*"),"i").test(text))||"";
+ const moneyMatches=[...all.matchAll(/(?:stake|bet amount|amount)\s*[:\-]?\s*[£€$]?\s*(\d+(?:\.\d{1,2})?)/ig)];
+ const returnMatches=[...all.matchAll(/(?:potential return|possible return|payout|returns?|winnings?)\s*[:\-]?\s*[£€$]?\s*(\d+(?:\.\d{1,2})?)/ig)];
+ const oddsMatches=[...all.matchAll(/(?:total\s*)?(?:odds|price)\s*[:\-]?\s*(\d+(?:\.\d+)?)/ig)];
+ let legs=[], current=null;
+ const fixtureRe=/\b(.{2,45}?)\s+(?:v|vs|versus|@)\s+(.{2,45})\b/i;
+ const skip=/^(stake|bet amount|potential return|possible return|payout|total odds|odds|cash out|bet slip|single|acca|accumulator|bet builder|estimated|return)$/i;
+ for(let line of lines){
+   if(skip.test(line)) continue;
+   const fm=line.match(fixtureRe);
+   if(fm){current={fixture:`${fm[1].trim()} v ${fm[2].trim()}`,market:"",selection:"",odds:""};legs.push(current);continue}
+   const om=line.match(/\b([1-9]\d?(?:\.\d{1,2})?)\b\s*$/);
+   const nums=[...line.matchAll(/\b\d+(?:\.\d+)?\b/g)].map(m=>m[0]);
+   if(current){
+     if(!current.market && /(\+?\d+(\.\d+)?|over|under|both teams|draw|win|to score|shots|corners|cards|goals|result|handicap|double chance)/i.test(line)){
+       if(!current.selection){current.selection=line}else current.market=line;
+     } else if(!current.selection && !/^\d/.test(line)) current.selection=line;
+     if(om) current.odds=om[1];
+   } else if(fixtureRe.test(line)===false && lines.indexOf(line)<8 && !/^\d/.test(line) && line.length<80){}
+ }
+ if(!legs.length){
+   const likely=lines.filter(x=>x.length>3&&!skip.test(x)&&!known.some(k=>x.toLowerCase()===k.toLowerCase())&&x.length<100);
+   for(let i=0;i<likely.length;i+=3){legs.push({fixture:"",market:likely[i]||"",selection:likely[i+1]||"",odds:likely[i+2]?.match(/\b\d+(?:\.\d+)?\b$/)?.[0]||""})}
+ }
+ return {bookmaker,sport:/tennis/i.test(text)?"Tennis":/basketball/i.test(text)?"Basketball":/racing|horse/i.test(text)?"Horse Racing":"Football",
+  stake:moneyMatches[0]?.[1]||"",return:returnMatches[0]?.[1]||"",odds:oddsMatches[0]?.[1]||"",legs:legs.slice(0,30),
+  result:/won|winning|settled/i.test(text)?"Won":/lost|losing/i.test(text)?"Lost":"Pending"};
+}
+
+function History({bets,updateResult,deleteBet}){
+ const [q,setQ]=useState(""),[filter,setFilter]=useState("All");
+ const rows=bets.filter(b=>(filter==="All"||b.result===filter)&&`${b.bookmaker} ${b.sport} ${b.note}`.toLowerCase().includes(q.toLowerCase()));
+ return <div className="content"><section className="card chartcard"><div className="cardhead"><div><b>Bankroll performance</b><span>Cumulative profit from settled builders</span></div></div><ProfitChart bets={bets}/></section>
+ <section className="card"><div className="toolbar"><input value={q} onChange={e=>setQ(e.target.value)} placeholder="⌕  Search bets…"/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>All</option><option>Won</option><option>Lost</option><option>Pending</option><option>Void</option></select></div>
+ <div className="table"><div className="tr th"><span>Date</span><span>Builder</span><span>Legs</span><span>Odds</span><span>Stake</span><span>Result</span><span>P/L</span><span></span></div>{rows.map(b=><div className="tr" key={b.id}><span>{b.date}</span><span><b>{b.bookmaker||"Unknown bookmaker"}</b><small>{b.sport} · {b.games} game{b.games==1?"":"s"}</small></span><span>{b.selections}</span><span>{Number(b.odds).toFixed(2)}</span><span>{money(b.stake)}</span><span><select className={`status ${b.result.toLowerCase()}`} value={b.result} onChange={e=>updateResult(b.id,e.target.value)}><option>Pending</option><option>Won</option><option>Lost</option><option>Void</option></select></span><span className={b.result==="Won"?"pos":b.result==="Lost"?"neg":"pend"}>{b.result==="Won"?"+":b.result==="Lost"?"−":"…"}{money(Math.abs(Number(b.return||0)-Number(b.stake||0)))}</span><button className="trash" onClick={()=>deleteBet(b.id)}>×</button></div>)}</div>{!rows.length&&<div className="noresults">No bets match your filters.</div>}</section></div>
+}
+
+function Analytics({bets}){
+ const byBook=Object.entries(bets.reduce((a,b)=>{a[b.bookmaker||"Unknown"]??={n:0,p:0,s:0};a[b.bookmaker||"Unknown"].n++;a[b.bookmaker||"Unknown"].p+=Number(b.return||0)-Number(b.stake||0);a[b.bookmaker||"Unknown"].s+=Number(b.stake||0);return a},{}));
+ const bySize=Object.entries(bets.reduce((a,b)=>{const k=`${b.games} game${b.games==1?"":"s"}`;a[k]??={n:0,p:0};a[k].n++;a[k].p+=Number(b.return||0)-Number(b.stake||0);return a},{}));
+ return <div className="content analytics"><section className="card"><div className="cardhead"><div><b>By bookmaker</b><span>Performance breakdown</span></div></div>{byBook.map(([k,v])=><div className="barrow" key={k}><div><b>{k}</b><span>{v.n} bet{v.n==1?"":"s"} · {money(v.p)} P/L</span></div><div className="bar"><i style={{width:`${Math.min(100,Math.max(6,50+v.p/2))}%`}}/></div>)}</section><section className="card"><div className="cardhead"><div><b>By builder size</b><span>Games per builder</span></div></div>{bySize.map(([k,v])=><div className="sizecard" key={k}><strong>{k}</strong><span>{v.n} bets</span><b className={v.p>=0?"pos":"neg"}>{v.p>=0?"+":""}{money(v.p)}</b></div>)}</section></div>
+}
+
+function Settings({bets,setBets}){
+ const exportData=()=>{const blob=new Blob([JSON.stringify(bets,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="bet-builder-tracker-backup.json";a.click()};
+ return <div className="content"><section className="card settings"><div className="cardhead"><div><b>Tracker settings</b><span>Simple, private and GitHub-deployable</span></div></div><div className="settingrow"><div><b>Local storage</b><span>Your saved bets persist in this browser.</span></div><button className="ghost" onClick={exportData}>Export backup</button></div><div className="settingrow"><div><b>Reset sample data</b><span>Replace current data with the starter examples.</span></div><button className="danger" onClick={()=>{if(confirm("Replace your current bets with starter data?"))setBets(seed)}}>Reset</button></div><div className="privacy"><b>Scanner privacy</b><p>Images are processed in your browser with OCR. The screenshot is not uploaded to a server by this app.</p></div></section></div>
+}
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
 createRoot(document.getElementById("root")).render(<App/>);
