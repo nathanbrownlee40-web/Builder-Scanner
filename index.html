@@ -7,6 +7,13 @@
 .previewwrap small{display:block;color:var(--muted);margin-top:8px}
 .result-Won{background:#15382d!important;color:var(--green)!important}.result-Lost{background:#3b1925!important;color:var(--red)!important}.result-Pending{background:#3a301d!important;color:var(--gold)!important}.result-Void{background:#273244!important;color:#aab8cb!important}
 .monthgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.monthcard{padding:16px;border:1px solid var(--line);border-radius:13px;background:#0a1727}.monthcard b{display:block}.monthcard .big{font-size:23px;font-weight:900;margin:7px 0}.metricgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.metric{padding:13px;border:1px solid var(--line);border-radius:11px;background:#0a1727}.metric small{display:block;color:var(--muted)}.metric strong{display:block;margin-top:5px;font-size:18px}
+
+.modalback{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;display:flex;align-items:center;justify-content:center;padding:14px;overflow:auto}
+.modal{width:min(100%,980px);max-height:94vh;overflow:auto;box-shadow:0 20px 80px rgba(0,0,0,.5)}
+.modalactions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+.editgame{margin-top:12px}.editgame>label{display:block;margin-bottom:10px}.editgame .market{margin-bottom:8px}
+.iconbtn.edit{padding:7px 10px;min-width:52px}.historychart{min-height:250px}
+@media(max-width:700px){.modalback{padding:6px}.modal{max-height:98vh}.modalactions{position:sticky;bottom:0;background:var(--card);padding-top:10px}}
 </style></head><body>
 <div class="app"><aside class="side"><div class="brand"><span class="logo">✓</span><div><b>BET TRACKER</b><small>BUILDERS + VALUE SINGLES</small></div></div><button class="nav active" data-page="Dashboard">⌂ Dashboard</button><button class="nav" data-page="Add Builder">＋ Builder</button><button class="nav" data-page="Add Single">◎ Value Single</button><button class="nav" data-page="Builder History">▤ Builder History</button><button class="nav" data-page="Single History">◉ Singles History</button><button class="nav" data-page="Analytics">◒ Analytics</button><button class="nav" data-page="Settings">⚙ Settings</button><div class="sidefoot">LOCAL DATA<br>YOUR BETS STAY IN THIS BROWSER</div></aside>
 <main class="main"><header><div><div class="eyebrow">BET BUILDER + VALUE BET TRACKER</div><h1 id="title">Dashboard</h1></div><div class="actions"><button id="install" class="ghost" hidden>Install app</button><button class="primary" data-go="Add Builder">＋ Builder</button><button class="ghost" data-go="Add Single">＋ Single</button></div></header><div id="view"></div></main></div>
@@ -22,7 +29,7 @@ function profit(b){if(b.result==='Won')return num(b.return)-num(b.stake);if(b.re
 function stats(a){let settled=a.filter(x=>x.result!=='Pending'),stake=settled.reduce((n,x)=>n+num(x.stake),0),p=settled.reduce((n,x)=>n+profit(x),0),w=settled.filter(x=>x.result==='Won').length,odds=settled.filter(x=>num(x.odds)>0).reduce((n,x)=>n+num(x.odds),0),oddsN=settled.filter(x=>num(x.odds)>0).length;return{n:a.length,settled:settled.length,p,stake,w,rate:settled.length?w/settled.length*100:0,roi:stake?p/stake*100:0,avgOdds:oddsN?odds/oddsN:0}}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function nav(p){page=p;$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));$('#title').textContent=p;render()}
-$$('.nav').forEach(x=>x.onclick=()=>nav(x.dataset.page));$$('[data-go]').forEach(x=>x.onclick=()=>nav(x.dataset.go));
+$$('.nav').forEach(x=>x.onclick=()=>nav(x.dataset.page));document.addEventListener('click',e=>{const n=e.target.closest('.nav');if(n){e.preventDefault();nav(n.dataset.page);return}const g=e.target.closest('[data-go]');if(g){e.preventDefault();nav(g.dataset.go)}});
 function dashboard(){let b=stats(builders),s=stats(singles),a=stats([...builders,...singles]);return `<div class="content"><section class="hero"><div><span class="pill">LOCAL TRACKER</span><h2>Builders and value singles in one place — with separate performance stats.</h2><p>Scan screenshots, build multi-game multis with as many markets as you need, then track your value singles independently.</p></div><div class="heroprofit">${money(a.p)}<small>combined settled profit</small></div></section><div class="kpis"><div class="kpi"><small>All bets</small><strong>${a.n}</strong><em>${a.settled} settled · ${a.n-a.settled} pending</em></div><div class="kpi"><small>Builder P/L</small><strong>${money(b.p)}</strong><em>${b.rate.toFixed(1)}% win · ${b.roi.toFixed(1)}% ROI</em></div><div class="kpi"><small>Singles P/L</small><strong>${money(s.p)}</strong><em>${s.rate.toFixed(1)}% win · ${s.roi.toFixed(1)}% ROI · avg odds ${s.avgOdds?s.avgOdds.toFixed(2):'—'}</em></div><div class="kpi"><small>Combined ROI</small><strong>${a.roi.toFixed(1)}%</strong><em>${money(a.p)} profit</em></div></div><div class="grid2"><section class="card"><div class="head"><div><b>Combined profit / loss</b><span>Settled builders + singles</span></div></div><div class="chart">${chart([...builders,...singles])}</div></section><section class="card"><div class="head"><div><b>Quick actions</b><span>Start tracking</span></div></div><div class="quick"><button class="primary" data-go="Add Builder">📷 Scan builder slip</button><button class="ghost" data-go="Add Single">📷 Scan value single</button><button class="ghost" data-go="Builder History">Builder history</button><button class="ghost" data-go="Single History">Singles history</button></div></section></div></div>`}
 function chart(arr){let d=arr.filter(x=>x.result!=='Pending').slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).reduce((a,x)=>{a.push({d:x.date,v:(a.at(-1)?.v||0)+profit(x)});return a},[]);if(!d.length)return '<div class="empty">Settle a bet to start the graph.</div>';let W=800,H=250,p=24,min=Math.min(0,...d.map(x=>x.v)),max=Math.max(0,...d.map(x=>x.v)),r=max-min||1,pts=d.map((x,i)=>`${p+i*(W-2*p)/Math.max(1,d.length-1)},${H-p-(x.v-min)/r*(H-2*p)}`).join(' '),zy=H-p-(0-min)/r*(H-2*p);return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="${p}" y1="${zy}" x2="${W-p}" y2="${zy}" class="zero"/><polyline points="${pts}" class="line"/></svg>`}
 function scanner(id,mode){return `<section class="card scanner"><div class="head"><div><b>📷 Screenshot reader</b><span>${mode==='single'?'Read a value-bet single':'Read a multi-game builder'} · OCR runs in your browser</span></div></div><input id="${id}" class="file" type="file" accept="image/png,image/jpeg,image/webp"><div class="drop" id="${id}drop" role="button" tabindex="0"><div><div class="upload">↑</div><b>Choose bet slip screenshot</b><div>Tap here or use the button below</div><button type="button" class="scanbtn" id="${id}choose">Choose screenshot</button><small>PNG · JPG · WEBP</small></div></div><div class="progress"><i id="${id}bar"></i></div><div class="statusbox" id="${id}status">Ready — choose a screenshot to scan.</div><div id="${id}preview"></div></section>`}
@@ -109,16 +116,93 @@ function history(type){
    <div class="metric"><small>ROI</small><strong class="${s.roi>=0?'pos':'neg'}">${s.roi.toFixed(1)}%</strong></div>
    <div class="metric"><small>Win rate</small><strong>${s.rate.toFixed(1)}%</strong></div>
    <div class="metric"><small>Average odds</small><strong>${s.avgOdds?s.avgOdds.toFixed(2):'—'}</strong></div></div></section>
-   <section class="card"><div class="head"><div><b>Monthly breakdown</b><span>Profit, stake, wins, win rate, ROI and average odds</span></div></div>${monthlyBreakdown(arr)}</section>
+   <section class="card"><div class="head"><div><b>Profit / loss graph</b><span>Cumulative singles profit after each settled bet</span></div></div><div class="chart historychart">${chart(arr)}</div></section><section class="card"><div class="head"><div><b>Monthly breakdown</b><span>Profit, stake, wins, win rate, ROI and average odds</span></div></div>${monthlyBreakdown(arr)}</section>
    ${breakdownPanel('Best performing markets','Settled singles · compare by profit, ROI or win rate','X','singleMarket').replace('>X<','>'+breakdown(market)+'<')}
    ${breakdownPanel('Best performing leagues / competitions','Settled singles · compare actual results','X','singleLeague').replace('>X<','>'+breakdown(league)+'<')}
    ${breakdownPanel('Best performing sports','Settled singles','X','singleSport').replace('>X<','>'+breakdown(sport)+'<')}
    <section class="card"><div class="toolbar"><input id="search" placeholder="⌕ Search bets…"><select id="filter"><option>All</option><option>Won</option><option>Lost</option><option>Pending</option><option>Void</option></select></div><div id="rows" class="table"></div></section>
    </div>`;
  }
- return `<div class="content"><section class="card"><div class="head"><div><b>Builders — full history</b><span>Monthly profit, staking and performance</span></div></div><div class="metricgrid"><div class="metric"><small>Total profit</small><strong class="${s.p>=0?'pos':'neg'}">${s.p>=0?'+':''}${money(s.p)}</strong></div><div class="metric"><small>Total staked</small><strong>${money(s.stake)}</strong></div><div class="metric"><small>ROI</small><strong class="${s.roi>=0?'pos':'neg'}">${s.roi.toFixed(1)}%</strong></div><div class="metric"><small>Win rate</small><strong>${s.rate.toFixed(1)}%</strong></div><div class="metric"><small>Average odds</small><strong>${s.avgOdds?s.avgOdds.toFixed(2):'—'}</strong></div></div></section><section class="card"><div class="head"><div><b>Monthly breakdown</b><span>Profit, stake, wins, win rate, ROI and average odds</span></div></div>${monthlyBreakdown(arr)}</section><section class="card"><div class="toolbar"><input id="search" placeholder="⌕ Search bets…"><select id="filter"><option>All</option><option>Won</option><option>Lost</option><option>Pending</option><option>Void</option></select></div><div id="rows" class="table"></div></section></div>`;
+ return `<div class="content"><section class="card"><div class="head"><div><b>Builders — full history</b><span>Monthly profit, staking and performance</span></div></div><div class="metricgrid"><div class="metric"><small>Total profit</small><strong class="${s.p>=0?'pos':'neg'}">${s.p>=0?'+':''}${money(s.p)}</strong></div><div class="metric"><small>Total staked</small><strong>${money(s.stake)}</strong></div><div class="metric"><small>ROI</small><strong class="${s.roi>=0?'pos':'neg'}">${s.roi.toFixed(1)}%</strong></div><div class="metric"><small>Win rate</small><strong>${s.rate.toFixed(1)}%</strong></div><div class="metric"><small>Average odds</small><strong>${s.avgOdds?s.avgOdds.toFixed(2):'—'}</strong></div></div></section><section class="card"><div class="head"><div><b>Profit / loss graph</b><span>Cumulative builder profit after each settled bet</span></div></div><div class="chart historychart">${chart(arr)}</div></section><section class="card"><div class="head"><div><b>Monthly breakdown</b><span>Profit, stake, wins, win rate, ROI and average odds</span></div></div>${monthlyBreakdown(arr)}</section><section class="card"><div class="toolbar"><input id="search" placeholder="⌕ Search bets…"><select id="filter"><option>All</option><option>Won</option><option>Lost</option><option>Pending</option><option>Void</option></select></div><div id="rows" class="table"></div></section></div>`;
 }
-function renderRows(type){let arr=type==='single'?singles:builders,q=($('#search')?.value||'').toLowerCase(),fil=$('#filter')?.value||'All',rows=arr.filter(b=>(fil==='All'||b.result===fil)&&JSON.stringify(b).toLowerCase().includes(q));let html=type==='single'?'<div class="row th"><span>Date</span><span>Single</span><span>Odds</span><span>Stake</span><span>Edge</span><span>Result</span><span>P/L</span><span></span></div>':'<div class="row th"><span>Date</span><span>Builder</span><span>Games</span><span>Odds</span><span>Stake</span><span>Result</span><span>P/L</span><span></span></div>';html+=rows.map(b=>{let p=profit(b);return type==='single'?`<div class="row"><span>${b.date}</span><span><b>${esc(b.selection||'Unknown')}</b><small>${esc(b.market||'Market')} · ${esc(b.bookmaker||'Bookmaker')}</small></span><span>${(num(b.odds)||(num(b.stake)&&num(b.return)?num(b.return)/num(b.stake):0)).toFixed(2)}</span><span>${money(b.stake)}</span><span>${num(b.edge).toFixed(1)}%</span><span><select class="status result-${b.result}" data-result="single" data-id="${b.id}"><option ${b.result==='Pending'?'selected':''}>Pending</option><option ${b.result==='Won'?'selected':''}>Won</option><option ${b.result==='Lost'?'selected':''}>Lost</option><option ${b.result==='Void'?'selected':''}>Void</option></select></span><span class="profit ${p>=0?'pos':'neg'}">${b.result==='Pending'?'…':(p>=0?'+':'')+money(p)}</span><button class="iconbtn del" data-type="single" data-id="${b.id}">×</button></div>`:`<div class="row"><span>${b.date}</span><span><b>${esc(b.bookmaker||'Unknown bookmaker')}</b><small>${esc(b.sport||'')} · ${b.selections||0} markets</small></span><span>${b.games||0}</span><span>${(num(b.odds)||(num(b.stake)&&num(b.return)?num(b.return)/num(b.stake):0)).toFixed(2)}</span><span>${money(b.stake)}</span><span><select class="status result-${b.result}" data-result="builder" data-id="${b.id}"><option ${b.result==='Pending'?'selected':''}>Pending</option><option ${b.result==='Won'?'selected':''}>Won</option><option ${b.result==='Lost'?'selected':''}>Lost</option><option ${b.result==='Void'?'selected':''}>Void</option></select></span><span class="profit ${p>=0?'pos':'neg'}">${b.result==='Pending'?'…':(p>=0?'+':'')+money(p)}</span><button class="iconbtn del" data-type="builder" data-id="${b.id}">×</button></div>`}).join('');$('#rows').innerHTML=rows.length?html:'<div class="emptylist">No bets match your filters.</div>';$$('.status').forEach(x=>x.onchange=()=>{let arr=x.dataset.result==='single'?singles:builders,b=arr.find(z=>z.id==x.dataset.id);if(b){b.result=x.value;if(x.value==='Won')b.return=num(b.stake)*num(b.odds);if(x.value==='Lost'||x.value==='Void')b.return=0;save();renderRows(type)}});$$('.del').forEach(x=>x.onclick=()=>{if(confirm('Delete this bet?')){if(x.dataset.type==='single')singles=singles.filter(b=>b.id!=x.dataset.id);else builders=builders.filter(b=>b.id!=x.dataset.id);save();renderRows(type)}});$('#search').oninput=()=>renderRows(type);$('#filter').onchange=()=>renderRows(type)}
+function renderRows(type){let arr=type==='single'?singles:builders,q=($('#search')?.value||'').toLowerCase(),fil=$('#filter')?.value||'All',rows=arr.filter(b=>(fil==='All'||b.result===fil)&&JSON.stringify(b).toLowerCase().includes(q));let html=type==='single'?'<div class="row th"><span>Date</span><span>Single</span><span>Odds</span><span>Stake</span><span>Edge</span><span>Result</span><span>P/L</span><span></span></div>':'<div class="row th"><span>Date</span><span>Builder</span><span>Games</span><span>Odds</span><span>Stake</span><span>Result</span><span>P/L</span><span></span></div>';html+=rows.map(b=>{let p=profit(b);return type==='single'?`<div class="row"><span>${b.date}</span><span><b>${esc(b.selection||'Unknown')}</b><small>${esc(b.market||'Market')} · ${esc(b.bookmaker||'Bookmaker')}</small></span><span>${(num(b.odds)||(num(b.stake)&&num(b.return)?num(b.return)/num(b.stake):0)).toFixed(2)}</span><span>${money(b.stake)}</span><span>${num(b.edge).toFixed(1)}%</span><span><select class="status result-${b.result}" data-result="single" data-id="${b.id}"><option ${b.result==='Pending'?'selected':''}>Pending</option><option ${b.result==='Won'?'selected':''}>Won</option><option ${b.result==='Lost'?'selected':''}>Lost</option><option ${b.result==='Void'?'selected':''}>Void</option></select></span><span class="profit ${p>=0?'pos':'neg'}">${b.result==='Pending'?'…':(p>=0?'+':'')+money(p)}</span><button class="iconbtn edit" data-type="single" data-id="${b.id}">Edit</button><button class="iconbtn del" data-type="single" data-id="${b.id}">×</button></div>`:`<div class="row"><span>${b.date}</span><span><b>${esc(b.bookmaker||'Unknown bookmaker')}</b><small>${esc(b.sport||'')} · ${b.selections||0} markets</small></span><span>${b.games||0}</span><span>${(num(b.odds)||(num(b.stake)&&num(b.return)?num(b.return)/num(b.stake):0)).toFixed(2)}</span><span>${money(b.stake)}</span><span><select class="status result-${b.result}" data-result="builder" data-id="${b.id}"><option ${b.result==='Pending'?'selected':''}>Pending</option><option ${b.result==='Won'?'selected':''}>Won</option><option ${b.result==='Lost'?'selected':''}>Lost</option><option ${b.result==='Void'?'selected':''}>Void</option></select></span><span class="profit ${p>=0?'pos':'neg'}">${b.result==='Pending'?'…':(p>=0?'+':'')+money(p)}</span><button class="iconbtn edit" data-type="builder" data-id="${b.id}">Edit</button><button class="iconbtn del" data-type="builder" data-id="${b.id}">×</button></div>`}).join('');$('#rows').innerHTML=rows.length?html:'<div class="emptylist">No bets match your filters.</div>';$$('.status').forEach(x=>x.onchange=()=>{let arr=x.dataset.result==='single'?singles:builders,b=arr.find(z=>z.id==x.dataset.id);if(b){b.result=x.value;if(x.value==='Won')b.return=num(b.stake)*num(b.odds);if(x.value==='Lost'||x.value==='Void')b.return=0;save();renderRows(type)}});$$('.edit').forEach(x=>x.onclick=()=>editBet(x.dataset.type,x.dataset.id));$$('.del').forEach(x=>x.onclick=()=>{if(confirm('Delete this bet?')){if(x.dataset.type==='single')singles=singles.filter(b=>b.id!=x.dataset.id);else builders=builders.filter(b=>b.id!=x.dataset.id);save();renderRows(type)}});$('#search').oninput=()=>renderRows(type);$('#filter').onchange=()=>renderRows(type)}
+
+function editBet(type,id){
+ const arr=type==='single'?singles:builders, b=arr.find(x=>x.id==id);
+ if(!b)return;
+ const isSingle=type==='single';
+ let body=isSingle?`
+   <div class="fields">
+    <label>Date<input id="editDate" type="date" value="${esc(b.date||'')}"></label>
+    <label>Bookmaker<input id="editBookmaker" value="${esc(b.bookmaker||'')}"></label>
+    <label>Sport<input id="editSport" value="${esc(b.sport||'Football')}"></label>
+    <label>League / Competition<input id="editLeague" value="${esc(b.league||'')}"></label>
+    <label>Market<input id="editMarket" value="${esc(b.market||'')}"></label>
+    <label>Selection<input id="editSelection" value="${esc(b.selection||'')}"></label>
+    <label>Odds<input id="editOdds" type="number" step="0.01" value="${num(b.odds)?num(b.odds).toFixed(2):''}"></label>
+    <label>Stake (£)<input id="editStake" type="number" step="0.01" value="${num(b.stake)}"></label>
+    <label>Estimated probability (%)<input id="editEst" type="number" step="0.1" value="${num(b.estimatedProbability)||''}"></label>
+    <label>Return (£)<input id="editReturn" type="number" step="0.01" value="${num(b.return)||''}"></label>
+    <label>Result<select id="editResult"><option ${b.result==='Pending'?'selected':''}>Pending</option><option ${b.result==='Won'?'selected':''}>Won</option><option ${b.result==='Lost'?'selected':''}>Lost</option><option ${b.result==='Void'?'selected':''}>Void</option></select></label>
+    <label>Note<input id="editNote" value="${esc(b.note||'')}"></label>
+   </div>`:
+   `<div class="fields">
+    <label>Date<input id="editDate" type="date" value="${esc(b.date||'')}"></label>
+    <label>Bookmaker<input id="editBookmaker" value="${esc(b.bookmaker||'')}"></label>
+    <label>Sport<input id="editSport" value="${esc(b.sport||'Football')}"></label>
+    <label>Stake (£)<input id="editStake" type="number" step="0.01" value="${num(b.stake)}"></label>
+    <label>Total odds<input id="editOdds" type="number" step="0.01" value="${num(b.odds)?num(b.odds).toFixed(2):''}"></label>
+    <label>Return (£)<input id="editReturn" type="number" step="0.01" value="${num(b.return)||''}"></label>
+    <label>Result<select id="editResult"><option ${b.result==='Pending'?'selected':''}>Pending</option><option ${b.result==='Won'?'selected':''}>Won</option><option ${b.result==='Lost'?'selected':''}>Lost</option><option ${b.result==='Void'?'selected':''}>Void</option></select></label>
+    <label>Note<input id="editNote" value="${esc(b.note||'')}"></label>
+   </div>
+   <div class="sectionrow"><div><b>Games & markets</b><span>Edit every fixture, market and selection</span></div></div>
+   <div id="editGames"></div>`;
+ const modal=document.createElement('div');
+ modal.className='modalback';
+ modal.id='editModal';
+ modal.innerHTML=`<div class="modal card"><div class="head"><div><b>Edit ${isSingle?'value single':'builder'}</b><span>Changes are saved immediately to this browser.</span></div><button type="button" class="iconbtn" id="closeEdit">×</button></div>${body}<div class="modalactions"><button type="button" class="ghost" id="cancelEdit">Cancel</button><button type="button" class="primary" id="saveEdit">Save changes</button></div></div>`;
+ document.body.appendChild(modal);
+
+ if(!isSingle){
+   const eg=$('#editGames');
+   const games=Array.isArray(b.gamesList)?b.gamesList:[];
+   eg.innerHTML=games.map((g,gi)=>`<div class="game editgame"><div class="gamehead"><b>Game ${gi+1}</b></div>
+     <label>Teams / fixture<input data-eg-fixture="${gi}" value="${esc(g.fixture||'')}"></label>
+     <div class="markethead"><b>Markets</b></div>
+     ${(g.markets||[]).map((m,mi)=>`<div class="market"><div class="num">${mi+1}</div><input data-eg="${gi},${mi},selection" value="${esc(m.selection||'')}" placeholder="Selection"><input data-eg="${gi},${mi},market" value="${esc(m.market||'')}" placeholder="Market"></div>`).join('')}
+   </div>`).join('') || '<div class="emptylist">No games stored on this builder.</div>';
+ }
+
+ const close=()=>modal.remove();
+ $('#closeEdit').onclick=close; $('#cancelEdit').onclick=close;
+ $('#saveEdit').onclick=()=>{
+   const st=num($('#editStake').value), ret=num($('#editReturn').value);
+   let odds=num($('#editOdds').value);
+   if(!odds && st && ret) odds=ret/st;
+   b.date=$('#editDate').value; b.bookmaker=$('#editBookmaker').value.trim(); b.sport=$('#editSport').value.trim();
+   b.stake=st; b.odds=odds; b.return=ret; b.result=$('#editResult').value; b.note=$('#editNote').value.trim();
+   if(isSingle){
+     b.league=$('#editLeague').value.trim(); b.market=$('#editMarket').value.trim(); b.selection=$('#editSelection').value.trim();
+     b.estimatedProbability=num($('#editEst').value); b.impliedProbability=odds?100/odds:0; b.edge=b.estimatedProbability?b.estimatedProbability-b.impliedProbability:0;
+   }else{
+     const games=Array.isArray(b.gamesList)?b.gamesList:[];
+     games.forEach((g,gi)=>{
+       const f=document.querySelector(`[data-eg-fixture="${gi}"]`); if(f)g.fixture=f.value.trim();
+       (g.markets||[]).forEach((m,mi)=>{
+         const sel=document.querySelector(`[data-eg="${gi},${mi},selection"]`);
+         const mar=document.querySelector(`[data-eg="${gi},${mi},market"]`);
+         if(sel)m.selection=sel.value.trim(); if(mar)m.market=mar.value.trim();
+       });
+     });
+     b.gamesList=games; b.games=games.length; b.selections=games.reduce((n,g)=>n+(g.markets||[]).length,0);
+   }
+   if(b.result==='Won' && st && odds)b.return=st*odds;
+   if(b.result==='Lost'||b.result==='Void')b.return=0;
+   save(); close(); renderRows(type);
+ };
+}
+
 function analytics(){
  let s=stats(singles),b=stats(builders);
  let market=group(singles,x=>x.market),
