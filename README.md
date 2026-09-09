@@ -18,3 +18,10 @@ A Vite + React starter dashboard for tracking multi-game bet builders.
 - Bankroll calculation
 
 The screenshot scanner is deliberately a front-end demo hook: connect an OCR/vision backend before treating extracted slip data as production data.
+
+## New in this version
+- Client-side Tesseract.js screenshot OCR workflow
+- Extracted text review panel
+- Editable multi-game/multi-market selection legs
+- Bet-history cumulative P/L graph with win/loss colours
+- PWA manifest + service worker + installable app shell
