@@ -1,5 +1,1 @@
-{
-  "name":"Bet Builder Tracker","short_name":"Bet Tracker","start_url":"/","display":"standalone",
-  "background_color":"#08111f","theme_color":"#0b1220",
-  "icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
-}
+{"name":"Bet Tracker — Builders + Value Singles","short_name":"Bet Tracker","start_url":"./","display":"standalone","background_color":"#07101d","theme_color":"#0b1220","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
