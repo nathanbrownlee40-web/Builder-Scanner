@@ -1,27 +1,28 @@
 # Bet Builder Tracker
 
-A Vite + React starter dashboard for tracking multi-game bet builders.
-
-## Run
-1. Install Node.js 18+.
-2. `npm install`
-3. `npm run dev`
-4. Open the local URL Vite prints.
+A GitHub-ready React/Vite PWA for tracking multi-game, multi-market bet builders.
 
 ## Included
-- Dashboard KPI cards
-- Monthly P/L visualisation
-- Bet history with search/filter
-- Add-bet screen
-- Screenshot upload demo hook
+- Real image file picker and drag/drop bet-slip scanner
+- In-browser Tesseract OCR (no image upload to a server)
+- Automatic extraction of bookmaker, stake, return, odds, sport and likely legs
+- Editable builder legs: game/fixture, market, selection and odds
+- Manual bet entry
+- Won / Lost / Pending / Void tracking
+- Dashboard KPIs and cumulative profit graph
+- Bet History graph, filters, search and quick result editing
 - Analytics by bookmaker and builder size
-- Bankroll calculation
+- Browser localStorage persistence
+- JSON backup export
+- Installable PWA
 
-The screenshot scanner is deliberately a front-end demo hook: connect an OCR/vision backend before treating extracted slip data as production data.
+## Run
+```bash
+npm install
+npm run dev
+```
 
-## New in this version
-- Client-side Tesseract.js screenshot OCR workflow
-- Extracted text review panel
-- Editable multi-game/multi-market selection legs
-- Bet-history cumulative P/L graph with win/loss colours
-- PWA manifest + service worker + installable app shell
+For GitHub Pages, build with `npm run build` and deploy the `dist` folder with a static-hosting workflow.
+
+### Scanner note
+OCR can only infer what is visible in the screenshot. Different bookmakers use different layouts, so after scanning, review the extracted legs before saving. The app is designed so every extracted field is editable rather than silently saving incorrect selections.
